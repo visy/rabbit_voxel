@@ -19,7 +19,7 @@
             "targetArchitecture": "arm",
             "miDebuggerServerAddress": "localhost:2345",
             "windows": {
-                "miDebuggerPath": "C:/devkitPro/devkitARM/bin/arm-none-eabi-gdb.exe",
+                "miDebuggerPath": "d:/dev/devkitpro/devkitARM/bin/arm-none-eabi-gdb.exe",
                 "setupCommands": [
                     {
                     "description": "Enable pretty-printing for gdb",
