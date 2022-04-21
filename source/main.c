@@ -211,10 +211,12 @@ INLINE void draw_horizontal_line(int y, int width, int color) {
 	if (y > 160) return;
 	if (width >= 128) width = 128;
 	if (width <= 0) return;
+	int siz = (128-width)*sizeof(u16);
+	if (siz > 92) siz = 92;
 	if (dblbuf == -1) {
-		memset(SCREEN+ypos[y]+width, color, (128-width)*sizeof(u16));
+		memset(SCREEN+ypos[y]+width, color, siz);
 	} else {
-		memset(SCREEN2+ypos[y]+width, color, (128-width)*sizeof(u16));
+		memset(SCREEN2+ypos[y]+width, color, siz);
 	}
 }
 
@@ -222,7 +224,7 @@ void voxel_render(Point p, int horizon,
 				  int distance, int screen_width) {
 
 	// draw from back to front (high z coordinate to low z coordinate)
-	for (int z = distance; z > 1; z-=8) {
+	for (int z = distance; z > 1; z-=16) {
 		// find line on map
 		Point pleft;
 		pleft.x = -z+p.x;
