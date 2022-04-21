@@ -265,7 +265,7 @@ int main()
 	int t = 0;
 
 		u32 cx = 120;
-		u32 cy = 70;
+		u32 cy = 120;
 
 		u32 zoomx = 140;
 		u32 zoomy = 160;
@@ -294,7 +294,7 @@ int main()
 
 
 		p.x=t*0.4;
-		voxel_render(p, 10, 40, 160);
+		voxel_render(p, 10, 80, 160);
 		t++;
 	}
 	return 0;
