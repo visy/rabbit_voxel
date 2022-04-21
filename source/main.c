@@ -176,6 +176,8 @@ const s16 COS[360] = {  256,  255,  255,  255,  255,  255,  254,  254,  253,  25
 unsigned char noisemap[64*64] = {0};
 int dblbuf = -1;
 
+int ypos[128] = {0};
+
 unsigned char lfsrnoise(int x, int y, int z) {
 	int n = x + y + z;
 	n = (n >> 16) ^ n;
@@ -204,20 +206,15 @@ void clearscreen() {
 	}
 }
 
-INLINE void draw_vertical_line(int x, int height, int color) {
-	if (x < 0) return;
-	if (x > 160) return;
-	if (height >= 128) height = 128;
-	if (height <= 0) return;
-
+INLINE void draw_horizontal_line(int y, int width, int color) {
+	if (y < 0) return;
+	if (y > 160) return;
+	if (width >= 128) width = 128;
+	if (width <= 0) return;
 	if (dblbuf == -1) {
-		for (int i = height; i < 128; i++) {
-			SCREEN[x + i * 160] = color;
-		}
+		memset(SCREEN+ypos[y]+width, color, (128-width)*sizeof(u16));
 	} else {
-		for (int i = height; i < 128; i++) {
-			SCREEN2[x + i * 160] = color;
-		}
+		memset(SCREEN2+ypos[y]+width, color, (128-width)*sizeof(u16));
 	}
 }
 
@@ -225,7 +222,7 @@ void voxel_render(Point p, int horizon,
 				  int distance, int screen_width) {
 
 	// draw from back to front (high z coordinate to low z coordinate)
-	for (int z = distance; z > 1; z-=4) {
+	for (int z = distance; z > 1; z-=8) {
 		// find line on map
 		Point pleft;
 		pleft.x = -z+p.x;
@@ -239,7 +236,7 @@ void voxel_render(Point p, int horizon,
 		float dx = fx2float(fxdiv(float2fx(pright.x - pleft.x), float2fx(screen_width)));
 
 		// raster the line and draw a vertical line for each segment
-		for (int i = 80-32; i < 80+32; i+=1) {
+		for (int i = 0; i < 128; i+=1) {
 			u8 vox = noisemap[(((s8)pleft.x&63)<<6)+((s8)pleft.y&63)];
 
 			int height_on_screen = vox;
@@ -248,7 +245,7 @@ void voxel_render(Point p, int horizon,
 			height_on_screen += horizon;
 			
 			int c = 0xFFFF-(height_on_screen<<4);
-			draw_vertical_line(i, height_on_screen, c);
+			draw_horizontal_line(i, height_on_screen, c);
 			pleft.x += dx;
 		}
 	}
@@ -258,20 +255,24 @@ int main()
 {
 	generate_noisemap();
 
+	for(int i = 0; i < 128; i++) {
+		ypos[i] = i*160;
+	}
+
 	Point p;
 	p.x = 0;
 	p.y = 0;
 	int t = 0;
 
-		u32 cx = 64;
-		u32 cy = 64;
+		u32 cx = 120;
+		u32 cy = 70;
 
-		u32 zoomx = 80;
-		u32 zoomy = 300;
+		u32 zoomx = 140;
+		u32 zoomy = 160;
 
 		u32 center_y = (cy * zoomy) >> 8;
 		u32 center_x = (cx * zoomx) >> 8;
-		u32 angle = 0;
+		u32 angle = 90;
 		REG_BG2X = (REG_BG2HOFS - center_y * SIN[angle] - center_x * COS[angle]);
 		REG_BG2Y = (REG_BG2VOFS - center_y * COS[angle] + center_x * SIN[angle]);
 		REG_BG2PA = (COS[angle] * zoomx) >> 8;
