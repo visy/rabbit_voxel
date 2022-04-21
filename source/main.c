@@ -1,5 +1,6 @@
 #include "Intellisense.h"
 #include <stdint.h>
+#include <stddef.h>
 
 #define SCREEN ((unsigned short*)0x06000000)
 #define SCREEN2 ((unsigned short*)0x0600A000)
@@ -178,6 +179,172 @@ int dblbuf = -1;
 
 int ypos[128] = {0};
 
+
+//# Stuff you may not have yet.
+typedef unsigned int uint;
+#define BIT_MASK(len)       ( (1<<(len))-1 )
+static inline u32 quad8(u8 x)   {   x |= x<<8; return x | x<<16;    }
+
+
+//# Declarations and inlines.
+
+void tonccpy(void *dst, const void *src, uint size);
+
+void __toncset(void *dst, u32 fill, uint size);
+static inline void toncset(void *dst, u8 src, uint size);
+static inline void toncset16(void *dst, u16 src, uint size);
+static inline void toncset32(void *dst, u32 src, uint size);
+
+
+//! VRAM-safe memset, byte version. Size in bytes.
+static inline void toncset(void *dst, u8 src, uint size)
+{   __toncset(dst, quad8(src), size);               }
+
+//! VRAM-safe memset, halfword version. Size in hwords.
+static inline void toncset16(void *dst, u16 src, uint size)
+{   __toncset(dst, src|src<<16, size*2);            }
+
+//! VRAM-safe memset, word version. Size in words.
+static inline void toncset32(void *dst, u32 src, uint size)
+{   __toncset(dst, src, size*4);                    }
+
+//# tonccpy.c
+
+//! VRAM-safe cpy.
+/*! This version mimics memcpy in functionality, with
+    the benefit of working for VRAM as well. It is also
+    slightly faster than the original memcpy, but faster
+    implementations can be made.
+    \param dst  Destination pointer.
+    \param src  Source pointer.
+    \param size Fill-length in bytes.
+    \note   The pointers and size need not be word-aligned.
+*/
+void tonccpy(void *dst, const void *src, uint size)
+{
+    if(size==0 || dst==NULL || src==NULL)
+        return;
+
+    uint count;
+    u16 *dst16;     // hword destination
+    u8  *src8;      // byte source
+
+    // Ideal case: copy by 4x words. Leaves tail for later.
+    if( ((u32)src|(u32)dst)%4==0 && size>=4)
+    {
+        u32 *src32= (u32*)src, *dst32= (u32*)dst;
+
+        count= size/4;
+        uint tmp= count&3;
+        count /= 4;
+
+        // Duff, bitch!
+        switch(tmp) {
+            do {    *dst32++ = *src32++;
+        case 3:     *dst32++ = *src32++;
+        case 2:     *dst32++ = *src32++;
+        case 1:     *dst32++ = *src32++;
+        case 0:     ; } while(count--);
+        }
+
+        // Check for tail
+        size &= 3;
+        if(size == 0)
+            return;
+
+        src8= (u8*)src32;
+        dst16= (u16*)dst32;
+    }
+    else        // Unaligned.
+    {
+        uint dstOfs= (u32)dst&1;
+        src8= (u8*)src;
+        dst16= (u16*)(dst-dstOfs);
+
+        // Head: 1 byte.
+        if(dstOfs != 0)
+        {
+            *dst16= (*dst16 & 0xFF) | *src8++<<8;
+            dst16++;
+            if(--size==0)
+                return;
+        }
+    }
+
+    // Unaligned main: copy by 2x byte.
+    count= size/2;
+    while(count--)
+    {
+        *dst16++ = src8[0] | src8[1]<<8;
+        src8 += 2;
+    }
+
+    // Tail: 1 byte.
+    if(size&1)
+        *dst16= (*dst16 &~ 0xFF) | *src8;
+}
+
+//# toncset.c
+
+//! VRAM-safe memset, internal routine.
+/*! This version mimics memset in functionality, with
+    the benefit of working for VRAM as well. It is also
+    slightly faster than the original memset.
+    \param dst  Destination pointer.
+    \param fill Word to fill with.
+    \param size Fill-length in bytes.
+    \note   The \a dst pointer and \a size need not be
+        word-aligned. In the case of unaligned fills, \a fill
+        will be masked off to match the situation.
+*/
+void __toncset(void *dst, u32 fill, uint size)
+{
+    if(size==0 || dst==NULL)
+        return;
+
+    uint left= (u32)dst&3;
+    u32 *dst32= (u32*)(dst-left);
+    u32 count, mask;
+
+    // Unaligned head.
+    if(left != 0)
+    {
+        // Adjust for very small stint.
+        if(left+size<4)
+        {
+            mask= BIT_MASK(size*8)<<(left*8);  
+            *dst32= (*dst32 &~ mask) | (fill & mask);
+            return;
+        }
+
+        mask= BIT_MASK(left*8);
+        *dst32= (*dst32 & mask) | (fill&~mask);
+        dst32++;
+        size -= 4-left;
+    }
+
+    // Main stint.
+    count= size/4;
+    uint tmp= count&3;
+    count /= 4;
+
+    switch(tmp) {
+        do {    *dst32++ = fill;
+    case 3:     *dst32++ = fill;
+    case 2:     *dst32++ = fill;
+    case 1:     *dst32++ = fill;
+    case 0:     ; } while(count--);
+    }
+
+    // Tail
+    size &= 3;
+    if(size)
+    {
+        mask= BIT_MASK(size*8);
+        *dst32= (*dst32 &~ mask) | (fill & mask);
+    }
+}
+
 unsigned char lfsrnoise(int x, int y, int z) {
 	int n = x + y + z;
 	n = (n >> 16) ^ n;
@@ -212,11 +379,11 @@ INLINE void draw_horizontal_line(int y, int width, int color) {
 	if (width >= 128) width = 128;
 	if (width <= 0) return;
 	int siz = (128-width)*sizeof(u16);
-	if (siz > 92) siz = 92;
+	if (siz > 72) siz = 72;
 	if (dblbuf == -1) {
-		memset(SCREEN+ypos[y]+width, color, siz);
+		toncset16(SCREEN+ypos[y]+width, color, siz);
 	} else {
-		memset(SCREEN2+ypos[y]+width, color, siz);
+		toncset16(SCREEN2+ypos[y]+width, color, siz);
 	}
 }
 
@@ -238,7 +405,7 @@ void voxel_render(Point p, int horizon,
 		float dx = fx2float(fxdiv(float2fx(pright.x - pleft.x), float2fx(screen_width)));
 
 		// raster the line and draw a vertical line for each segment
-		for (int i = 0; i < 128; i+=1) {
+		for (int i = 32; i < 128-32; i+=1) {
 			u8 vox = noisemap[(((s8)pleft.x&63)<<6)+((s8)pleft.y&63)];
 
 			int height_on_screen = vox;
@@ -246,7 +413,7 @@ void voxel_render(Point p, int horizon,
 			height_on_screen = fx2float(fxdiv(int2fx(height_on_screen),float2fx(z)));
 			height_on_screen += horizon;
 			
-			int c = 0xFFFF-(height_on_screen);
+			int c = 0xFFFF-(height_on_screen<<4);
 			draw_horizontal_line(i, height_on_screen, c);
 			pleft.x += dx;
 		}
