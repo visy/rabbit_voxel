@@ -244,7 +244,7 @@ void voxel_render(Point p, int horizon,
 			height_on_screen = fx2float(fxdiv(int2fx(height_on_screen),float2fx(z)));
 			height_on_screen += horizon;
 			
-			int c = 0xFFFF-(height_on_screen<<4);
+			int c = 0xFFFF-(height_on_screen);
 			draw_horizontal_line(i, height_on_screen, c);
 			pleft.x += dx;
 		}
@@ -293,7 +293,7 @@ int main()
 
 
 
-		p.x=t*0.4;
+		p.x=t*0.6;
 		voxel_render(p, 10, 80, 160);
 		t++;
 	}
