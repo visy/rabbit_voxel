@@ -373,25 +373,28 @@ void clearscreen() {
 	}
 }
 
-INLINE void draw_horizontal_line(int y, int width, int color) {
+INLINE void draw_horizontal_line(int y, int width, int prev, int color) {
 	if (y < 0) return;
 	if (y > 160) return;
-	if (width >= 128) width = 128;
-	if (width <= 0) return;
-	int siz = (128-width)*sizeof(u16);
-	if (siz > 34) siz = 34;
+    if (width > 128) width = 128;
 	if (dblbuf == -1) {
-		toncset16(SCREEN+ypos[y]+width, color, siz);
+		toncset16(SCREEN+ypos[y]+(128-width), color, width-prev);
 	} else {
-		toncset16(SCREEN2+ypos[y]+width, color, siz);
+		toncset16(SCREEN2+ypos[y]+(128-width), color, width-prev);
 	}
 }
+
+int voxheights[128] = {0};
 
 void voxel_render(Point p, int horizon, 
 				  int distance, int screen_width) {
 
-	// draw from back to front (high z coordinate to low z coordinate)
-	for (int z = distance; z > 1; z-=8) {
+    // clear voxheights array
+    for (int i = 0; i < 128; i++) {
+        voxheights[i] = 0;
+    }
+
+	for (int z = 4; z < 16; z+=2) {
 		// find line on map
 		Point pleft;
 		pleft.x = -z+p.x;
@@ -409,11 +412,15 @@ void voxel_render(Point p, int horizon,
 			u8 vox = noisemap[(((s8)pleft.x&63)<<6)+((s8)pleft.y&63)];
 
 			int height_on_screen = vox;
-			height_on_screen = height_on_screen/z;
+			height_on_screen = height_on_screen/(16-z);
 			height_on_screen += horizon;
 			
-			int c = 0xFFFF-(height_on_screen<<4);
-			draw_horizontal_line(i, height_on_screen, c);
+            if (height_on_screen > voxheights[i]) {
+                int c = 0xFFFF-(height_on_screen<<4);
+                draw_horizontal_line(i, height_on_screen, voxheights[i], c);
+                voxheights[i] = height_on_screen;
+            }
+
 			pleft.x += dx;
 		}
 	}
@@ -456,7 +463,7 @@ int main()
 	p.y = 0;
 	int t = 0;
 
-    rotscale(-0xFF*7,0x8a8,90);
+    rotscale(-0xFF*12,0x8a8,90);
 
 	while(1) {
 
@@ -466,8 +473,10 @@ int main()
 		dblbuf = -dblbuf;
 		if (dblbuf == 1) {
 			DISPCONTROL = 0x0405;
+            memset(SCREEN2, 0x0, 160*128*2);
 		} else {
 			DISPCONTROL = 0x0415;
+            memset(SCREEN, 0x0, 160*128*2);
 		}
 
 		p.x=t*0.6;
