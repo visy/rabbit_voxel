@@ -356,7 +356,7 @@ unsigned char lfsrnoise(int x, int y, int z) {
 void generate_noisemap() {
 	for (int y = 0; y < 64; y++) {
 		for (int x = 0; x < 64; x++) {
-			noisemap[y*64+x] = 64-lfsrnoise(x, y, 0)%32;
+			noisemap[y*64+x] = 256-lfsrnoise(x, y, 0)%128;
 		}
 	}
 }
@@ -379,7 +379,7 @@ INLINE void draw_horizontal_line(int y, int width, int color) {
 	if (width >= 128) width = 128;
 	if (width <= 0) return;
 	int siz = (128-width)*sizeof(u16);
-	if (siz > 72) siz = 72;
+	if (siz > 34) siz = 34;
 	if (dblbuf == -1) {
 		toncset16(SCREEN+ypos[y]+width, color, siz);
 	} else {
@@ -391,7 +391,7 @@ void voxel_render(Point p, int horizon,
 				  int distance, int screen_width) {
 
 	// draw from back to front (high z coordinate to low z coordinate)
-	for (int z = distance; z > 1; z-=16) {
+	for (int z = distance; z > 1; z-=8) {
 		// find line on map
 		Point pleft;
 		pleft.x = -z+p.x;
@@ -402,15 +402,14 @@ void voxel_render(Point p, int horizon,
 		pright.y = -z+p.y;
 
 		// line segmentation
-		float dx = fx2float(fxdiv(float2fx(pright.x - pleft.x), float2fx(screen_width)));
+        float dx = (pright.x - pleft.x) / screen_width;
 
 		// raster the line and draw a vertical line for each segment
-		for (int i = 32; i < 128-32; i+=1) {
+		for (int i = 0; i < 128; i+=1) {
 			u8 vox = noisemap[(((s8)pleft.x&63)<<6)+((s8)pleft.y&63)];
 
 			int height_on_screen = vox;
-			height_on_screen=height_on_screen<<4;
-			height_on_screen = fx2float(fxdiv(int2fx(height_on_screen),float2fx(z)));
+			height_on_screen = height_on_screen/z;
 			height_on_screen += horizon;
 			
 			int c = 0xFFFF-(height_on_screen<<4);
@@ -434,10 +433,10 @@ int main()
 	int t = 0;
 
 		u32 cx = 120;
-		u32 cy = 120;
+		u32 cy = 161;
 
-		u32 zoomx = 140;
-		u32 zoomy = 160;
+		u32 zoomx = 80;
+		u32 zoomy = 100;
 
 		u32 center_y = (cy * zoomy) >> 8;
 		u32 center_x = (cx * zoomx) >> 8;
@@ -448,6 +447,8 @@ int main()
 		REG_BG2PB = (SIN[angle] * zoomx) >> 8;
 		REG_BG2PC = (-SIN[angle] * zoomy) >> 8;
 		REG_BG2PD = (COS[angle] * zoomy) >> 8;
+
+
 
 	while(1){
 
@@ -461,9 +462,8 @@ int main()
 
 
 
-
 		p.x=t*0.6;
-		voxel_render(p, 10, 80, 160);
+		voxel_render(p, 10, 40, 128);
 		t++;
 	}
 	return 0;
