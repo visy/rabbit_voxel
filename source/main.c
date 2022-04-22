@@ -419,6 +419,30 @@ void voxel_render(Point p, int horizon,
 	}
 }
 
+#define REG_VCOUNT *(vu16*)0x04000006
+
+void vid_vsync()
+{
+    while(REG_VCOUNT >= 160);   // wait till VDraw
+    while(REG_VCOUNT < 160);    // wait till VBlank
+}
+
+void rotscale(int sx, int sy, u16 alpha)
+{
+	int ss= SIN[alpha%360], cc= COS[alpha%360];
+
+    REG_BG2PA = cc*sx>>12;
+    REG_BG2PB = -ss*sx>>12;
+    REG_BG2PC = ss*sy>>12;
+    REG_BG2PD = cc*sy>>12;
+}
+
+void scroll(int x, int y) {
+    REG_BG2X = x;
+    REG_BG2Y = y;
+}
+
+
 int main()
 {
 	generate_noisemap();
@@ -432,26 +456,12 @@ int main()
 	p.y = 0;
 	int t = 0;
 
-		u32 cx = 120;
-		u32 cy = 161;
+    rotscale(-0xFF*7,0x8a8,90);
 
-		u32 zoomx = 80;
-		u32 zoomy = 100;
+	while(1) {
 
-		u32 center_y = (cy * zoomy) >> 8;
-		u32 center_x = (cx * zoomx) >> 8;
-		u32 angle = 90;
-		REG_BG2X = (REG_BG2HOFS - center_y * SIN[angle] - center_x * COS[angle]);
-		REG_BG2Y = (REG_BG2VOFS - center_y * COS[angle] + center_x * SIN[angle]);
-		REG_BG2PA = (COS[angle] * zoomx) >> 8;
-		REG_BG2PB = (SIN[angle] * zoomx) >> 8;
-		REG_BG2PC = (-SIN[angle] * zoomy) >> 8;
-		REG_BG2PD = (COS[angle] * zoomy) >> 8;
-
-
-
-	while(1){
-
+        vid_vsync();
+        //scroll(SIN[t*4]<<2,COS[t*4]<<2);
 
 		dblbuf = -dblbuf;
 		if (dblbuf == 1) {
@@ -459,8 +469,6 @@ int main()
 		} else {
 			DISPCONTROL = 0x0415;
 		}
-
-
 
 		p.x=t*0.6;
 		voxel_render(p, 10, 40, 128);
