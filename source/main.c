@@ -356,7 +356,8 @@ unsigned char lfsrnoise(int x, int y, int z) {
 void generate_noisemap() {
 	for (int y = 0; y < 64; y++) {
 		for (int x = 0; x < 64; x++) {
-			noisemap[y*64+x] = 256-lfsrnoise(x, y, 0)%128;
+			//noisemap[y*64+x] = 256-lfsrnoise(x, y, 0)%128;
+            noisemap[y*64+x] = 512-abs((16*(SIN[(x<<8)%360]+COS[(y<<8)%360])));
 		}
 	}
 }
@@ -374,14 +375,7 @@ void clearscreen() {
 }
 
 INLINE void draw_horizontal_line(int y, int width, int prev, int color) {
-	if (y < 0) return;
-	if (y > 160) return;
-    if (width > 128) width = 128;
-	if (dblbuf == -1) {
-		toncset16(SCREEN+ypos[y]+(128-width), color, width-prev);
-	} else {
-		toncset16(SCREEN2+ypos[y]+(128-width), color, width-prev);
-	}
+    toncset16((dblbuf == -1 ? SCREEN : SCREEN2)+ypos[y]+(128-width&127), color, (width&127)-prev);
 }
 
 int voxheights[128] = {0};
@@ -394,7 +388,7 @@ void voxel_render(Point p, int horizon,
         voxheights[i] = 0;
     }
 
-	for (int z = 4; z < 16; z+=2) {
+	for (int z = 4; z < 24; z+=2) {
 		// find line on map
 		Point pleft;
 		pleft.x = -z+p.x;
@@ -412,7 +406,7 @@ void voxel_render(Point p, int horizon,
 			u8 vox = noisemap[(((s8)pleft.x&63)<<6)+((s8)pleft.y&63)];
 
 			int height_on_screen = vox;
-			height_on_screen = height_on_screen/(16-z);
+			height_on_screen = height_on_screen/(26-z);
 			height_on_screen += horizon;
 			
             if (height_on_screen > voxheights[i]) {
@@ -449,6 +443,11 @@ void scroll(int x, int y) {
     REG_BG2Y = y;
 }
 
+INLINE u16 rgb(u32 red, u32 green, u32 blue)
+{
+    return red | (green<<5) | (blue<<10);
+}
+
 
 int main()
 {
@@ -463,7 +462,7 @@ int main()
 	p.y = 0;
 	int t = 0;
 
-    rotscale(-0xFF*12,0x8a8,90);
+    rotscale(-0xFF*16,0x8a8,90);
 
 	while(1) {
 
@@ -473,14 +472,14 @@ int main()
 		dblbuf = -dblbuf;
 		if (dblbuf == 1) {
 			DISPCONTROL = 0x0405;
-            memset(SCREEN2, 0x0, 160*128*2);
+            toncset16(SCREEN2, rgb(135,206,235), 160*128);
 		} else {
 			DISPCONTROL = 0x0415;
-            memset(SCREEN, 0x0, 160*128*2);
+            toncset16(SCREEN, rgb(135,206,235), 160*128);
 		}
 
 		p.x=t*0.6;
-		voxel_render(p, 10, 40, 128);
+		voxel_render(p, 1, 40, 128);
 		t++;
 	}
 	return 0;
