@@ -407,22 +407,19 @@ void clearscreen() {
 	}
 }
 
-INLINE void draw_horizontal_line(int y, int width, int prev, int color) {
-    toncset16((dblbuf == -1 ? SCREEN : SCREEN2)+ypos[y]+(128-width*2&127), color, (width*2&127)-prev*2);
+INLINE void draw_horizontal_line(u8 y, u8 width, u8 prev, u8 color) {
+    toncset((dblbuf == -1 ? SCREEN : SCREEN2)+y*120+(200-width), color, width-prev);
 }
 
-int voxheights[128] = {0};
+u8 voxheights[64] = {0};
 
 void voxel_render(Point p, int horizon, 
 				  int distance, int screen_width) {
 
-    // clear voxheights array
-    for (int i = 0; i < 128; i++) {
-        voxheights[i] = 0;
-    }
+    // clear voxheights array with toncset
+    toncset(voxheights, 0, 64);
 
-
-	for (int z = 4; z < 24; z+=2) {
+	for (int z = 4; z < 28; z+=2) {
 		// find line on map
 		Point pleft;
 		pleft.x = -z+p.x;
@@ -440,14 +437,14 @@ void voxel_render(Point p, int horizon,
 			u8 vox = noisemap[(((s8)pleft.x&63)<<6)+((s8)pleft.y&63)];
 
 			int height_on_screen = vox;
-			height_on_screen = height_on_screen/(26-z);
+			height_on_screen = height_on_screen/(30-z);
 
             int h=horizon+(abs(SIN[i<<2]>>6));
 
 			height_on_screen += h;
 			
             if (height_on_screen > voxheights[i]) {
-                int c = 0x7faa-(vox<<1)+(z<<16);
+                u8 c = 255-(((vox>>2)+(z>>2))<<1);
                 draw_horizontal_line(i, height_on_screen, voxheights[i], c);
                 voxheights[i] = height_on_screen;
             }
@@ -485,12 +482,33 @@ INLINE u16 rgb(u32 red, u32 green, u32 blue)
     return red | (green<<5) | (blue<<10);
 }
 
+volatile unsigned short* palette = (volatile unsigned short*) 0x5000000;
+
+int next_palette_index = 0;
+
+unsigned char add_color(int r, int g, int b) {
+
+    /* add the color to the palette */
+    palette[next_palette_index] = rgb(r,g,b);
+
+    /* increment the index */
+    next_palette_index++;
+
+    /* return index of color just added */
+    return next_palette_index - 1;
+}
+
+
 int main()
 {
 	generate_noisemap();
 
+    for(int i = 0; i <= 255; i++) {
+        add_color(i,i,i);
+    }
+
 	for(int i = 0; i < 128; i++) {
-		ypos[i] = i*160;
+		ypos[i] = i*240;
 	}
 
 	Point p;
@@ -498,7 +516,6 @@ int main()
 	p.y = 0;
 	int t = 0;
 
-    rotscale(-0xFF*14,0x452,90);
 
 	while(1) {
 
@@ -521,15 +538,16 @@ int main()
         }
 
         vid_vsync();
-        //scroll(SIN[t*4]<<2,COS[t*4]<<2);
+
+    rotscale(-4344,1060,90);
 
 		dblbuf = -dblbuf;
 		if (dblbuf == 1) {
-			DISPCONTROL = 0x0405;
-            toncset16(SCREEN2, rgb(135,206,235), 160*128);
+			DISPCONTROL = 0x0404;
+            toncset(SCREEN2, 0, 240*64);
 		} else {
-			DISPCONTROL = 0x0415;
-            toncset16(SCREEN, rgb(135,206,235), 160*128);
+			DISPCONTROL = 0x0414;
+            toncset(SCREEN, 0, 240*64);
 		}
 
 		p.x=t*0.4;
