@@ -47,6 +47,28 @@ typedef const s16 cs16;
 typedef const s32 cs32;
 typedef const s64 cs64;
 
+#define REG_KEYINPUT  (* (volatile u16*) 0x4000130)
+
+#define KEY_A        0x0001
+#define KEY_B        0x0002
+#define KEY_SELECT   0x0004
+#define KEY_START    0x0008
+#define KEY_RIGHT    0x0010
+#define KEY_LEFT     0x0020
+#define KEY_UP       0x0040
+#define KEY_DOWN     0x0080
+#define KEY_R        0x0100
+#define KEY_L        0x0200
+
+#define KEY_MASK     0xFC00
+
+u16 input_cur;
+
+
+int param1 = 0;
+int param2 = 0;
+
+
 #define REG_BG2HOFS		*(u16*)0x04000018 //BG2 X-Offset
 #define REG_BG2VOFS		*(u16*)0x0400001A //BG2 Y-Offset
 
@@ -184,6 +206,17 @@ int ypos[128] = {0};
 typedef unsigned int uint;
 #define BIT_MASK(len)       ( (1<<(len))-1 )
 static inline u32 quad8(u8 x)   {   x |= x<<8; return x | x<<16;    }
+
+
+INLINE key_poll()
+{
+    input_cur = REG_KEYINPUT | KEY_MASK;
+}
+
+u32 getKeyState(u16 key_code)
+{
+    return !(input_cur & key_code);
+}
 
 
 //# Declarations and inlines.
@@ -388,6 +421,7 @@ void voxel_render(Point p, int horizon,
         voxheights[i] = 0;
     }
 
+
 	for (int z = 4; z < 24; z+=2) {
 		// find line on map
 		Point pleft;
@@ -402,15 +436,18 @@ void voxel_render(Point p, int horizon,
         float dx = (pright.x - pleft.x) / screen_width;
 
 		// raster the line and draw a vertical line for each segment
-		for (int i = 0; i < 128; i+=1) {
+		for (int i = 0; i < 64; i+=1) {
 			u8 vox = noisemap[(((s8)pleft.x&63)<<6)+((s8)pleft.y&63)];
 
 			int height_on_screen = vox;
 			height_on_screen = height_on_screen/(26-z);
-			height_on_screen += horizon;
+
+            int h=horizon+(abs(SIN[i<<2]>>6));
+
+			height_on_screen += h;
 			
             if (height_on_screen > voxheights[i]) {
-                int c = 0xFFFF-(height_on_screen<<4);
+                int c = 0x7faa-(vox<<1)+(z<<16);
                 draw_horizontal_line(i, height_on_screen, voxheights[i], c);
                 voxheights[i] = height_on_screen;
             }
@@ -448,7 +485,6 @@ INLINE u16 rgb(u32 red, u32 green, u32 blue)
     return red | (green<<5) | (blue<<10);
 }
 
-
 int main()
 {
 	generate_noisemap();
@@ -462,9 +498,27 @@ int main()
 	p.y = 0;
 	int t = 0;
 
-    rotscale(-0xFF*16,0x8a8,90);
+    rotscale(-0xFF*14,0x452,90);
 
 	while(1) {
+
+        key_poll();
+        if ( getKeyState(KEY_LEFT) )
+        {
+            param1--;
+        }
+        if ( getKeyState(KEY_RIGHT) )
+        {
+            param1++;
+        }
+        if ( getKeyState(KEY_UP) )
+        {
+            param2++;
+        }
+        if ( getKeyState(KEY_DOWN) )
+        {
+            param2--;
+        }
 
         vid_vsync();
         //scroll(SIN[t*4]<<2,COS[t*4]<<2);
@@ -478,7 +532,7 @@ int main()
             toncset16(SCREEN, rgb(135,206,235), 160*128);
 		}
 
-		p.x=t*0.6;
+		p.x=t*0.4;
 		voxel_render(p, 1, 40, 128);
 		t++;
 	}
