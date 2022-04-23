@@ -375,7 +375,7 @@ void clearscreen() {
 }
 
 INLINE void draw_horizontal_line(int y, int width, int prev, int color) {
-    toncset16((dblbuf == -1 ? SCREEN : SCREEN2)+ypos[y]+(128-width&127), color, (width&127)-prev);
+    toncset16((dblbuf == -1 ? SCREEN : SCREEN2)+ypos[y]+(128-width*2&127), color, (width*2&127)-prev*2);
 }
 
 int voxheights[128] = {0};
