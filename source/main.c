@@ -408,7 +408,7 @@ void clearscreen() {
 }
 
 INLINE void draw_horizontal_line(u8 y, u8 width, u8 prev, u8 color) {
-    toncset((dblbuf == -1 ? SCREEN : SCREEN2)+y*120+(200-width), color, width-prev);
+    toncset16((dblbuf == -1 ? SCREEN : SCREEN2)+y*120+(200-width)-1, (color<<8)+color, width-prev);
 }
 
 u8 voxheights[64] = {0};
